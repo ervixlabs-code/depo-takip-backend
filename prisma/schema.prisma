@@ -1,0 +1,144 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+enum Status {
+  ACTIVE
+  PASSIVE
+}
+
+enum StockMovementType {
+  IN
+  OUT
+}
+
+enum TransferStatus {
+  PENDING
+  COMPLETED
+  CANCELLED
+}
+
+model Warehouse {
+  id          String   @id @default(uuid())
+  name        String
+  code        String   @unique
+  type        String?
+  city        String?
+  district    String?
+  address     String?
+  manager     String?
+  phone       String?
+  email       String?
+  capacity    Int      @default(0)
+  description String?
+  status      Status   @default(ACTIVE)
+
+  stocks      WarehouseStock[]
+  movements   StockMovement[]
+
+    outgoingTransfers Transfer[] @relation("TransferFromWarehouse")
+incomingTransfers Transfer[] @relation("TransferToWarehouse")
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model Product {
+  id            String   @id @default(uuid())
+  name          String
+  sku           String   @unique
+  barcode       String?  @unique
+  category      String?
+  unit          String   @default("Adet")
+  minStock      Int      @default(0)
+  purchasePrice Decimal  @default(0)
+  salePrice     Decimal  @default(0)
+  description   String?
+  status        Status   @default(ACTIVE)
+
+  warehouseStocks WarehouseStock[]
+  movements        StockMovement[]
+  transfers Transfer[]
+
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+model WarehouseStock {
+  id          String @id @default(uuid())
+  productId   String
+  warehouseId String
+  quantity    Int    @default(0)
+  minStock    Int    @default(0)
+  unit        String @default("Adet")
+
+  product     Product   @relation(fields: [productId], references: [id], onDelete: Cascade)
+  warehouse   Warehouse @relation(fields: [warehouseId], references: [id], onDelete: Cascade)
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([productId, warehouseId])
+}
+
+model StockMovement {
+  id               String            @id @default(uuid())
+  type             StockMovementType
+
+  productId        String
+  warehouseId      String
+
+  quantity         Int
+  previousQuantity Int
+  nextQuantity     Int
+
+  documentNo       String?
+  responsible      String?
+  location         String?
+  note             String?
+
+  product          Product   @relation(fields: [productId], references: [id], onDelete: Cascade)
+  warehouse        Warehouse @relation(fields: [warehouseId], references: [id], onDelete: Cascade)
+
+  createdAt        DateTime @default(now())
+}
+
+model Transfer {
+  id                  String         @id @default(uuid())
+  code                String         @unique
+  productId           String
+  fromWarehouseId     String
+  toWarehouseId       String
+  quantity            Int
+  unit                String         @default("Adet")
+  status              TransferStatus @default(PENDING)
+
+  fromLocation        String?
+  toLocation          String?
+  responsible         String?
+  documentNo          String?
+  transferDate        DateTime?
+  note                String?
+
+  completedAt         DateTime?
+  cancelledAt         DateTime?
+
+  product             Product        @relation(fields: [productId], references: [id], onDelete: Cascade)
+  fromWarehouse       Warehouse      @relation("TransferFromWarehouse", fields: [fromWarehouseId], references: [id], onDelete: Cascade)
+  toWarehouse         Warehouse      @relation("TransferToWarehouse", fields: [toWarehouseId], references: [id], onDelete: Cascade)
+
+  createdAt           DateTime       @default(now())
+  updatedAt           DateTime       @updatedAt
+}
